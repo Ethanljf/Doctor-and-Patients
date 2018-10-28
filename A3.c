@@ -10,12 +10,13 @@
 
 void *doctor(void *param);
 void *patient(void *param);
-static void enqueue(pthread_t patient);
+static int enqueue(pthread_t patient);
+static void dequeue(void);
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 sem_t s;
 
-static pthread_t *queue;
+static pthread_t queue[4];
 
 int main(void){
 
@@ -36,8 +37,9 @@ int main(void){
 
     for(int i=0; i<patientNum; i++){
         pthread_create(&patThread[i], NULL, patient, NULL);
-        enqueue(patThread[i]);
-        printf("Patient %d is going home\n", i);
+        if(!enqueue(patThread[i])){
+            printf("Waiting room full. Patient %d drinking coffee\n", i);
+        }
         pthread_join(patThread[i], NULL);
     }
 
@@ -59,13 +61,26 @@ void *doctor(void *param){
 
 void *patient(void *param){
     while(1){
+        pthread_exit(NULL);
     }
 }
 
-static void enqueue(pthread_t patient){
+static int enqueue(pthread_t patient){
     int i;
     
     for(i=0; queue[i]!=NULL; i++);
 
-    queue[i] = patient;
+    if(queue[i] == NULL){
+        queue[i] = patient;
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static void dequeue(void){    
+    for(int i=3; i>0; i--){
+        queue[i-1] = queue[i];
+    }
+    queue[3] = NULL;
 }
