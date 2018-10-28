@@ -12,6 +12,7 @@ void *doctor(void *param);
 void *patient(void *param);
 static int enqueue(pthread_t patient);
 static void dequeue(void);
+static int queueSize(void);
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 sem_t s;
@@ -37,9 +38,6 @@ int main(void){
 
     for(int i=0; i<patientNum; i++){
         pthread_create(&patThread[i], NULL, patient, NULL);
-        if(!enqueue(patThread[i])){
-            printf("Waiting room full. Patient %d drinking coffee\n", i);
-        }
         pthread_join(patThread[i], NULL);
     }
 
@@ -50,8 +48,16 @@ int main(void){
 }
 
 void *doctor(void *param){ 
+    int sleeping = 0;
+
     while(1){
-        printf("\tDoctor is sleeping\n");
+        while(queue == NULL){
+            if(sleeping == 0){
+                printf("\tDoctor is sleeping\n");
+                sleeping = 1;
+                sleep(1);
+            }
+        }
         sem_wait(&s);
         //Critical section for doctor thread
         printf("The Doctor is examining patient\n");
@@ -60,7 +66,21 @@ void *doctor(void *param){
 }
 
 void *patient(void *param){
+    int waiting = 0;
+    int roomFull = 0;
     while(1){
+        while(!enqueue(patient)){
+            if(roomFull == 0){
+                roomFull = 1;
+                printf("Waiting room full. Patient drinking coffee\n");
+            }
+        }
+        roomFull = 0;
+        while(s == 0){
+            if(waiting == 0){
+                printf("Patient is waiting. Chairs occupied = %d\n", queueSize());
+            }
+        }
         pthread_exit(NULL);
     }
 }
@@ -68,14 +88,13 @@ void *patient(void *param){
 static int enqueue(pthread_t patient){
     int i;
     
-    for(i=0; queue[i]!=NULL; i++);
-
-    if(queue[i] == NULL){
-        queue[i] = patient;
-        return 1;
-    } else {
-        return 0;
+    for(i=0; i<4; i++){
+        if(queue[i] == NULL){
+            queue[i] = patient;
+            return 1;
+        }
     }
+    return 0;
 }
 
 static void dequeue(void){    
@@ -83,4 +102,15 @@ static void dequeue(void){
         queue[i-1] = queue[i];
     }
     queue[3] = NULL;
+}
+
+static int queueSize(void){
+    int i;
+    
+    for(i=0; i<4; i++){
+        if(queue[i] == NULL){
+            return i;
+        }
+    }
+    return i;
 }
