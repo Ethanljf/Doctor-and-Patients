@@ -91,7 +91,7 @@ void *patient(void *param){
             }
         }
 
-        if(queueSize == 1){
+        if(queueSize() == 1){
             printf("Waiting room is empty. Patient %d wakes up the doctor.\n", pID);
         } else {
             roomFull = 0;
