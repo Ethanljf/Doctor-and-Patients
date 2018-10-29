@@ -38,7 +38,9 @@ int main(void){
     pthread_create(&docThread, NULL, doctor, NULL);
 
     for(int i=0; i<patientNum; i++){
+        pthread_mutex_lock(&lock);
         pthread_create(&patThread[i], NULL, patient, i+1);
+        pthread_mutex_unlock(&lock);
     }
 
     for(int i=0; i<patientNum; i++){
