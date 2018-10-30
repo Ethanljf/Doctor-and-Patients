@@ -10,15 +10,22 @@
 
 void *doctor(void *param);
 void *patient(void *param);
-static int enqueue(pthread_t patient);
+static int enqueue(int pID);
 static void dequeue(void);
 static int queueSize(void);
 static int randTime(void);
 
+pthread_mutex_t exam = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 sem_t s;
 
-static pthread_t queue[4];
+static int queue[4];
+static int goneHome;
+static int patientCount;
+
+typedef struct{
+    int id; 
+} patientData;
 
 int main(void){
 
@@ -31,20 +38,24 @@ int main(void){
     fgets(userInput, 81, stdin);
     inputTok = strtok(userInput, " ");
     patientNum = atoi(inputTok);
+    patientCount = patientNum;
 
     pthread_t docThread, patThread[patientNum];
     sem_t s = sem_init(&s, 0, 1);
 
     pthread_create(&docThread, NULL, doctor, NULL);
 
+    patientData **data;
+
     for(int i=0; i<patientNum; i++){
-        pthread_mutex_lock(&lock);
-        pthread_create(&patThread[i], NULL, patient, i+1);
-        pthread_mutex_unlock(&lock);
+        data[i] = (patientData *) malloc(sizeof(patientData));
+        data[i]->id = i+1;
+        pthread_create(&patThread[i], NULL, patient, data[i]);
     }
 
     for(int i=0; i<patientNum; i++){
         pthread_join(patThread[i], NULL);
+        free(data[i]);
     }
 
     pthread_join(docThread, NULL);
@@ -55,9 +66,11 @@ int main(void){
 
 void *doctor(void *param){ 
     int sleeping = 0;
-    printf("Doctor is sleeping\n");
     while(1){
-        while(queue == NULL){
+        while(queue[0] == NULL){
+            if(goneHome == patientCount){
+                pthread_exit(NULL);
+            }
             if(sleeping == 0){
                 printf("Doctor is sleeping\n");
                 sleeping = 1;
@@ -68,69 +81,79 @@ void *doctor(void *param){
         sem_wait(&s);
         //Critical section for doctor thread
         int x = randTime();
-        printf("The Doctor is examining patient for %d seconds. Chairs occupied = %d\n", x, queueSize()-1);
+        printf("The Doctor is examining patient %d for %d seconds. Chairs occupied = %d\n", queue[0], x, queueSize());
+        dequeue();
         sleep(x);
         sem_post(&s);
     }
 }
 
 void *patient(void *param){
-    int *pID = param;
-    int waiting = 0;
-    int roomFull = 0;
-    int labVisit = 0;
-    int secondExam = 0;
-    int goHome = 0;
+    patientData *data = param;
+    int first = 0;
+    int second = 0;
+    int lab = 0;
     while(1){
-        while(!enqueue(patient)){
-            if(roomFull == 0){
-                roomFull = 1;
+
+        sem_wait(&s);
+            if(queueSize() == 0){
+                printf("Waiting room is empty. Patient %d wakes up the doctor.\n", data->id);
+                enqueue(data->id);
+            }
+        sem_post(&s);
+
+        sem_wait(&s);
+            if(queueSize() == 4){
                 int x = randTime();
-                printf("Waiting room full. Patient %d drinking coffee for %d seconds\n", pID, x);
+                printf("Waiting room full. Patient %d drinking coffee for %d seconds\n", data->id, x);
                 sleep(x);
             }
-        }
+        sem_post(&s);
 
-        if(queueSize() == 1){
-            printf("Waiting room is empty. Patient %d wakes up the doctor.\n", pID);
-        } else {
-            roomFull = 0;
-            while(s == 0){
-                if(waiting == 0){
-                    waiting = 1;
-                    printf("Patient %d is waiting. Chairs occupied = %d\n", pID, queueSize());
-                }
+        sem_wait(&s);
+            if(first == 0 && queue[0] != data->id){
+                printf("Patient %d is waiting. Chairs occupied = %d\n", data->id, queueSize());
+                enqueue(data->id);
             }
-            waiting = 0;
-        }
+        sem_post(&s);
+        
+        sem_wait(&s);
+            if(first == 0 && queue[0] == data->id){
+                printf("Patient %d getting first examination\n", data->id);
+                first = 1;
+            }
+        sem_post(&s);
 
-        if(secondExam == 0){
-            secondExam = 1;
-            printf("Patient %d getting first examination\n", pID);
-            dequeue();
-        } else {
-            goHome = 1;
-            printf("Patient %d getting second examination\n", pID);
-            dequeue();
-        }
+        sem_wait(&s);
+            if(first == 1){
+                int x = randTime();
+                printf("Patient %d is visiting the lab for %d seconds\n", data->id, 1);
+                sleep(x);
+                lab = 1;
+            }
+        sem_post(&s);
 
-        if(labVisit == 0){
-            labVisit = 1;
-            int x = randTime();
-            printf("Patient %d is visiting the lab for %d seconds\n", pID, x);
-            sleep(x);
-        }
+        sem_wait(&s);
+            if(lab == 1){
+                printf("Patient %d getting second examination\n", data->id);
+                second = 1;
+            }
+        sem_post(&s);
 
-        if(goHome == 1){
-            pthread_exit(NULL);
-        }
+        sem_wait(&s);
+            if(second == 1){
+                printf("Patient %d is going home\n", data->id);
+                goneHome++;
+                pthread_exit(NULL);
+            }
+        sem_post(&s);
     }
 }
 
-static int enqueue(pthread_t patient){
+static int enqueue(int pID){
     for(int i=0; i<4; i++){
         if(queue[i] == NULL){
-            queue[i] = patient;
+            queue[i] = pID;
             return 1;
         }
     }
@@ -157,5 +180,5 @@ static int queueSize(void){
 
 static int randTime(void){
     srand(time(NULL));
-    return (rand() % 11) + 1;
+    return (rand() % 5) + 1;
 }
