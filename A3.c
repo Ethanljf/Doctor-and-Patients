@@ -29,7 +29,7 @@ int patientCount;
 int inRoom = 0;
 
 typedef struct{
-    int id; 
+    int id;
 } patientData;
 
 int main(void){
@@ -57,13 +57,12 @@ int main(void){
     sem_init(&walkOut, 1, 1);
 
     for(int i=0; i<4; i++){
-        queue[i] = malloc(sizeof(int));
         queue[i] = 0;
     }
 
     pthread_create(&docThread, NULL, doctor, NULL);
 
-    patientData **data = (patientData *) malloc(sizeof(patientData));
+    patientData **data = malloc(sizeof(patientData**));
 
     for(int i=0; i<patientNum; i++){
         data[i] = malloc(sizeof(patientData));
@@ -75,10 +74,6 @@ int main(void){
     for(int i=0; i<patientNum; i++){
         pthread_join(patThread[i], NULL);
         free(data[i]);
-    }
-
-    for(int i=0; i<4; i++){
-        free(queue[i]);
     }
 
     pthread_join(docThread, NULL);
@@ -109,7 +104,6 @@ void *doctor(void *param){
         //Critical section for doctor thread
         int x = randTime();
         printf("The Doctor is examining Patient %d for %d seconds. Chairs occupied = %d\n", queue[0], x, queueSize()-1);
-        int *cur = queue[0];
         dequeue();
         sem_post(&inExam);
         sem_post(&emptyChairs);
