@@ -43,9 +43,16 @@ int main(void){
     fflush(stdout);
 
     //string parse user input and create num processes specified
-    fgets(userInput, 81, stdin);
+    if( !fgets(userInput, 81, stdin)){
+	printf("Error: fgets fail\n");
+	exit(EXIT_FAILURE);
+    }
     inputTok = strtok(userInput, " ");
     patientNum = atoi(inputTok);
+    if(patientNum < 1){
+      printf("Error: User input must be a positive integer.\n");
+      exit(EXIT_FAILURE);
+    }
     patientCount = patientNum;
 
     //Create the doctor thread along with the desired number of patient threads
@@ -228,9 +235,11 @@ void *patient(void *param){
             int x = randTime();
             printf("Patient %d is visiting the lab for %d seconds\n", data->id, x);
             inRoom = 0;
-	    if(sem_post(&waiting) != 0){
-	      printf("Error\n");
-	      exit(EXIT_FAILURE);
+	    if(patientCount != 1){
+	      if(sem_post(&waiting) != 0){
+		printf("Error\n");
+		exit(EXIT_FAILURE);
+	      }
 	    }
             if(pthread_mutex_unlock(&exam) != 0){
 	      printf("Error\n");
@@ -248,9 +257,11 @@ void *patient(void *param){
 	    }
             printf("Patient %d is going home\n", data->id);
             inRoom = 0;
-            if(sem_post(&waiting) != 0){
-	      printf("Error\n");
-	      exit(EXIT_FAILURE);
+	    if(patientCount != 1){
+	      if(sem_post(&waiting) != 0){
+		printf("Error\n");
+		exit(EXIT_FAILURE);
+	      }
 	    }
             if(pthread_mutex_unlock(&exam) != 0){
 	      printf("Error\n");
